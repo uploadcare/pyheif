@@ -15,6 +15,17 @@ avif_files = list(Path().glob("tests/images/**/*.avif"))
 heif_files = heic_files + hif_files + avif_files
 
 
+def create_pillow_image(heif_file):
+    return Image.frombytes(
+        heif_file.mode,
+        heif_file.size,
+        heif_file.data,
+        "raw",
+        heif_file.mode,
+        heif_file.stride,
+    )
+
+
 @pytest.mark.parametrize("path", heif_files)
 def test_check(path):
     filetype = pyheif.check(path)
@@ -84,14 +95,7 @@ def test_read_icc_color_profile(heif_file):
 
 
 def test_read_pillow_frombytes(heif_file):
-    image = Image.frombytes(
-        heif_file.mode,
-        heif_file.size,
-        heif_file.data,
-        "raw",
-        heif_file.mode,
-        heif_file.stride,
-    )
+    create_pillow_image(heif_file)
 
 
 @pytest.mark.parametrize("path", heif_files)
@@ -135,3 +139,15 @@ def test_open_and_load_data_not_collected(path):
     gc.collect()
 
     heif_file.load()
+
+
+def test_no_transformations():
+    transformed = pyheif.read("tests/images/arrow.heic")
+    native = pyheif.read("tests/images/arrow.heic", apply_transformations=False)
+    assert transformed.size[0] != transformed.size[1]
+    assert transformed.size == native.size[::-1]
+
+    transformed = create_pillow_image(transformed)
+    native = create_pillow_image(native)
+
+    assert transformed == native.transpose(Image.ROTATE_270)
