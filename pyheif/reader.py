@@ -56,8 +56,7 @@ class UndecodedHeifFile(HeifFile):
 
 
 def check(fp):
-    d = _get_bytes(fp)
-    magic = d[:12]
+    magic = _get_bytes(fp, 12)
     filetype_check = _libheif_cffi.lib.heif_check_filetype(magic, len(magic))
     return filetype_check
 
@@ -81,23 +80,17 @@ def open(fp, *, apply_transformations=True, convert_hdr_to_8bit=True):
     return _read_heif_bytes(d, apply_transformations, convert_hdr_to_8bit)
 
 
-def _get_bytes(fp):
+def _get_bytes(fp, length=None):
     if isinstance(fp, str):
         with builtins.open(fp, "rb") as f:
-            d = f.read()
-    elif isinstance(fp, bytearray):
-        d = bytes(fp)
+            d = f.read(length or -1)
     elif isinstance(fp, pathlib.Path):
-        d = fp.read_bytes()
+        with fp.open("rb") as f:
+            d = f.read(length or -1)
     elif hasattr(fp, "read"):
-        d = fp.read()
+        d = fp.read(length or -1)
     else:
-        d = fp
-
-    if not isinstance(d, bytes):
-        raise ValueError(
-            "Input must be file name, bytes, byte array, path or file-like object"
-        )
+        d = bytes(fp)[:length]
 
     return d
 
@@ -154,8 +147,13 @@ def _read_heif_context(ctx, d, apply_transformations, convert_hdr_to_8bit):
 
 
 def _read_heif_handle(handle, apply_transformations, convert_hdr_to_8bit):
-    width = _libheif_cffi.lib.heif_image_handle_get_width(handle)
-    height = _libheif_cffi.lib.heif_image_handle_get_height(handle)
+    if apply_transformations:
+        width = _libheif_cffi.lib.heif_image_handle_get_width(handle)
+        height = _libheif_cffi.lib.heif_image_handle_get_height(handle)
+    else:
+        width = _libheif_cffi.lib.heif_image_handle_get_ispe_width(handle)
+        height = _libheif_cffi.lib.heif_image_handle_get_ispe_height(handle)
+
     has_alpha = bool(_libheif_cffi.lib.heif_image_handle_has_alpha_channel(handle))
     bit_depth = _libheif_cffi.lib.heif_image_handle_get_luma_bits_per_pixel(handle)
 
@@ -221,13 +219,26 @@ def _read_color_profile(handle):
     color_profile = {"type": "unknown", "data": None}
     if profile_type == _constants.heif_color_profile_type_nclx:
         color_profile["type"] = "nclx"
-    elif profile_type == _constants.heif_color_profile_type_rICC:
-        color_profile["type"] = "rICC"
-    elif profile_type == _constants.heif_color_profile_type_prof:
-        color_profile["type"] = "prof"
-    data_length = _libheif_cffi.lib.heif_image_handle_get_raw_color_profile_size(handle)
-    p_data = _libheif_cffi.ffi.new("char[]", data_length)
-    error = _libheif_cffi.lib.heif_image_handle_get_raw_color_profile(handle, p_data)
+        data_length = _libheif_cffi.ffi.sizeof("struct heif_color_profile_nclx")
+        p_p_data = _libheif_cffi.ffi.new("struct heif_color_profile_nclx * *")
+        error = _libheif_cffi.lib.heif_image_handle_get_nclx_color_profile(
+            handle, p_p_data
+        )
+        p_data = p_p_data[0]
+
+    else:
+        if profile_type == _constants.heif_color_profile_type_rICC:
+            color_profile["type"] = "rICC"
+        elif profile_type == _constants.heif_color_profile_type_prof:
+            color_profile["type"] = "prof"
+        data_length = _libheif_cffi.lib.heif_image_handle_get_raw_color_profile_size(
+            handle
+        )
+        p_data = _libheif_cffi.ffi.new("char[]", data_length)
+        error = _libheif_cffi.lib.heif_image_handle_get_raw_color_profile(
+            handle, p_data
+        )
+
     if error.code != 0:
         raise _error.HeifError(
             code=error.code,
