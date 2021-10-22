@@ -10,12 +10,22 @@ from . import error as _error
 
 class HeifFile:
     def __init__(
-        self, *, size, has_alpha, bit_depth, metadata, color_profile, data, stride
+        self,
+        *,
+        size,
+        has_alpha,
+        bit_depth,
+        transformations,
+        metadata,
+        color_profile,
+        data,
+        stride,
     ):
         self.size = size
         self.has_alpha = has_alpha
         self.mode = "RGBA" if has_alpha else "RGB"
         self.bit_depth = bit_depth
+        self.transformations = transformations
         self.metadata = metadata
         self.color_profile = color_profile
         self.data = data
@@ -153,6 +163,7 @@ def _read_heif_handle(handle, apply_transformations, convert_hdr_to_8bit):
     has_alpha = bool(_libheif_cffi.lib.heif_image_handle_has_alpha_channel(handle))
     bit_depth = _libheif_cffi.lib.heif_image_handle_get_luma_bits_per_pixel(handle)
 
+    transformations = _read_transformations(handle)
     metadata = _read_metadata(handle)
     color_profile = _read_color_profile(handle)
 
@@ -161,12 +172,30 @@ def _read_heif_handle(handle, apply_transformations, convert_hdr_to_8bit):
         size=(width, height),
         has_alpha=has_alpha,
         bit_depth=bit_depth,
+        transformations=transformations,
         metadata=metadata,
         color_profile=color_profile,
         apply_transformations=apply_transformations,
         convert_hdr_to_8bit=convert_hdr_to_8bit,
     )
     return heif_file
+
+
+def _read_transformations(handle):
+    transformations = _libheif_cffi.lib.heif_transformations_alloc()
+    transformations = _libheif_cffi.ffi.gc(
+        transformations, _libheif_cffi.lib.heif_transformations_free
+    )
+    _libheif_cffi.lib.heif_image_handle_get_transformations(handle, transformations)
+    return {
+        "crop": (
+            transformations.crop_left,
+            transformations.crop_top,
+            transformations.crop_width,
+            transformations.crop_height,
+        ),
+        "orientation_tag": transformations.orientation_tag,
+    }
 
 
 def _read_metadata(handle):
