@@ -94,6 +94,23 @@ def test_read_icc_color_profile(heif_file):
         cms = ImageCms.getOpenProfile(profile)
 
 
+@pytest.mark.parametrize("path", heif_files + hif_files)
+def test_read_transformations(path):
+    heif_file = pyheif.open(path, apply_transformations=False)
+    width, height = heif_file.size
+    
+    assert 'orientation_tag' in heif_file.transformations
+    orientation_tag = heif_file.transformations['orientation_tag']
+    assert 0 <= orientation_tag <= 8
+
+    assert 'crop' in heif_file.transformations
+    crop = heif_file.transformations['crop']
+    assert 0 <= crop[0] < width
+    assert 0 <= crop[1] < height
+    assert 1 <= crop[2] <= width - crop[0]
+    assert 1 <= crop[3] <= height - crop[1]
+
+
 def test_read_pillow_frombytes(heif_file):
     create_pillow_image(heif_file)
 
