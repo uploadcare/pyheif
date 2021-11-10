@@ -83,15 +83,19 @@ RUN set -ex \
 # libheif
 RUN set -ex \
     && mkdir -p /build-deps && cd /build-deps \
-    && LIBHEIF_VERSION="1.12.0" \
-    && curl -fLO https://github.com/strukturag/libheif/releases/download/v${LIBHEIF_VERSION}/libheif-${LIBHEIF_VERSION}.tar.gz \
-    && tar xvf libheif-${LIBHEIF_VERSION}.tar.gz \
-    && cd libheif-${LIBHEIF_VERSION} \
+    && LIBHEIF_VERSION="1.14.2-prod" \
+    && curl -fLO https://github.com/uploadcare/libheif/archive/${LIBHEIF_VERSION}.tar.gz \
+    && tar xvf ${LIBHEIF_VERSION}.tar.gz \
+    && mv libheif-* libheif && cd libheif \
+    && ./autogen.sh \
     && ./configure --prefix /usr --disable-examples \
     && make -j4 \
     && make install \
     && ldconfig \
     && rm -rf /build-deps
+
+RUN set -ex \
+    && strip /usr/lib/lib*.so -s
 
 ##########################
 # Build manylinux wheels #
