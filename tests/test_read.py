@@ -15,6 +15,17 @@ avif_files = list(Path().glob("tests/images/**/*.avif"))
 heif_files = heic_files + hif_files + avif_files
 
 
+def create_pillow_image(heif_file):
+    return Image.frombytes(
+        heif_file.mode,
+        heif_file.size,
+        heif_file.data,
+        "raw",
+        heif_file.mode,
+        heif_file.stride,
+    )
+
+
 @pytest.mark.parametrize("path", heif_files)
 def test_check(path):
     filetype = pyheif.check(path)
@@ -83,15 +94,25 @@ def test_read_icc_color_profile(heif_file):
         cms = ImageCms.getOpenProfile(profile)
 
 
+@pytest.mark.parametrize("path", heif_files + hif_files)
+def test_read_transformations(path):
+    heif_file = pyheif.open(path, apply_transformations=False)
+    width, height = heif_file.size
+    
+    assert 'orientation_tag' in heif_file.transformations
+    orientation_tag = heif_file.transformations['orientation_tag']
+    assert 0 <= orientation_tag <= 8
+
+    assert 'crop' in heif_file.transformations
+    crop = heif_file.transformations['crop']
+    assert 0 <= crop[0] < width
+    assert 0 <= crop[1] < height
+    assert 1 <= crop[2] <= width - crop[0]
+    assert 1 <= crop[3] <= height - crop[1]
+
+
 def test_read_pillow_frombytes(heif_file):
-    image = Image.frombytes(
-        heif_file.mode,
-        heif_file.size,
-        heif_file.data,
-        "raw",
-        heif_file.mode,
-        heif_file.stride,
-    )
+    create_pillow_image(heif_file)
 
 
 @pytest.mark.parametrize("path", heif_files)
@@ -135,3 +156,15 @@ def test_open_and_load_data_not_collected(path):
     gc.collect()
 
     heif_file.load()
+
+
+def test_no_transformations():
+    transformed = pyheif.read("tests/images/arrow.heic")
+    native = pyheif.read("tests/images/arrow.heic", apply_transformations=False)
+    assert transformed.size[0] != transformed.size[1]
+    assert transformed.size == native.size[::-1]
+
+    transformed = create_pillow_image(transformed)
+    native = create_pillow_image(native)
+
+    assert transformed == native.transpose(Image.ROTATE_270)
