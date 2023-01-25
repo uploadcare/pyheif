@@ -83,15 +83,19 @@ RUN set -ex \
 # libheif
 RUN set -ex \
     && mkdir -p /build-deps && cd /build-deps \
-    && LIBHEIF_VERSION="1.12.0" \
-    && curl -fLO https://github.com/strukturag/libheif/releases/download/v${LIBHEIF_VERSION}/libheif-${LIBHEIF_VERSION}.tar.gz \
-    && tar xvf libheif-${LIBHEIF_VERSION}.tar.gz \
-    && cd libheif-${LIBHEIF_VERSION} \
+    && LIBHEIF_VERSION="1.14.2-prod" \
+    && curl -fLO https://github.com/uploadcare/libheif/archive/${LIBHEIF_VERSION}.tar.gz \
+    && tar xvf ${LIBHEIF_VERSION}.tar.gz \
+    && mv libheif-* libheif && cd libheif \
+    && ./autogen.sh \
     && ./configure --prefix /usr --disable-examples \
     && make -j4 \
     && make install \
     && ldconfig \
     && rm -rf /build-deps
+
+RUN set -ex \
+    && strip /usr/lib/lib*.so -s
 
 ##########################
 # Build manylinux wheels #
@@ -126,14 +130,14 @@ RUN set -ex \
     && cd "/opt/python/cp310-cp310/bin/" \
     && ./pip wheel /pyheif \
     && auditwheel repair pyheif*.whl --plat manylinux2014_x86_64 -w /wheelhouse
-# pypy 3.7
-RUN set -ex \
-    && cd "/opt/python/pp37-pypy37_pp73/bin/" \
-    && ./pip wheel /pyheif \
-    && auditwheel repair pyheif*.whl --plat manylinux2014_x86_64 -w /wheelhouse
 # pypy 3.8
 RUN set -ex \
     && cd "/opt/python/pp38-pypy38_pp73/bin/" \
+    && ./pip wheel /pyheif \
+    && auditwheel repair pyheif*.whl --plat manylinux2014_x86_64 -w /wheelhouse
+# pypy 3.9
+RUN set -ex \
+    && cd "/opt/python/pp39-pypy39_pp73/bin/" \
     && ./pip wheel /pyheif \
     && auditwheel repair pyheif*.whl --plat manylinux2014_x86_64 -w /wheelhouse
 
@@ -151,8 +155,8 @@ RUN /opt/python/cp37-cp37m/bin/pip install -r /tmp/requirements-test.txt
 RUN /opt/python/cp38-cp38/bin/pip install -r /tmp/requirements-test.txt
 RUN /opt/python/cp39-cp39/bin/pip install -r /tmp/requirements-test.txt
 RUN /opt/python/cp310-cp310/bin/pip install -r /tmp/requirements-test.txt
-RUN /opt/python/pp37-pypy37_pp73/bin/pip install -r /tmp/requirements-test.txt
-# RUN /opt/python/pp38-pypy38_pp73/bin/pip install -r /tmp/requirements-test.txt
+RUN /opt/python/pp38-pypy38_pp73/bin/pip install -r /tmp/requirements-test.txt
+RUN /opt/python/pp39-pypy39_pp73/bin/pip install -r /tmp/requirements-test.txt
 
 COPY --from=repaired /wheelhouse /wheelhouse
 COPY ./ /pyheif
@@ -183,17 +187,16 @@ RUN set -ex \
     && PNV="/opt/python/cp310-cp310/bin" \
     && $PNV/pip install /wheelhouse/*-cp310-cp310-*.whl \
     && $PNV/pytest
-# pypy 3.7
+# pypy 3.8
 RUN set -ex \
-    && PNV="/opt/python/pp37-pypy37_pp73/bin/" \
-    && $PNV/pip install /wheelhouse/*-pp37-pypy37_pp73-*.whl \
+    && PNV="/opt/python/pp38-pypy38_pp73/bin/" \
+    && $PNV/pip install /wheelhouse/*-pp38-pypy38_pp73-*.whl \
     && $PNV/pytest
-# No Pillow wheels for pypy 3.8
-# # pypy 3.8
-# RUN set -ex \
-#     && PNV="/opt/python/pp38-pypy38_pp73/bin/" \
-#     && $PNV/pip install /wheelhouse/*-pp38-pypy38_pp73-*.whl \
-#     && $PNV/pytest
+# pypy 3.9
+RUN set -ex \
+    && PNV="/opt/python/pp39-pypy39_pp73/bin/" \
+    && $PNV/pip install /wheelhouse/*-pp39-pypy39_pp73-*.whl \
+    && $PNV/pytest
 
 #################
 # Upload wheels #
