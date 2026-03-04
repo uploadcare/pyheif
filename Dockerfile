@@ -7,8 +7,8 @@ RUN dnf install -y nasm
 RUN pipx install --force "cmake<4"
 
 
-# -------------------------------- base ------------------------------------------------
-FROM base AS build-deps
+# -------------------------------- libheif-deps ----------------------------------------
+FROM base AS libheif-deps
 
 ENV X265_VERSION=4.1
 RUN set -ex \
@@ -43,9 +43,9 @@ RUN set -ex \
 
 
 # -------------------------------- libheif ---------------------------------------------
-FROM build-deps AS libheif
+FROM libheif-deps AS libheif
 
-ARG LIBHEIF_VERSION=1.18.2
+ARG LIBHEIF_VERSION=1.21.2
 RUN set -ex \
     && LIBHEIF_VERSION="$LIBHEIF_VERSION" \
     && curl -fLO https://github.com/strukturag/libheif/releases/download/v${LIBHEIF_VERSION}/libheif-${LIBHEIF_VERSION}.tar.gz \
