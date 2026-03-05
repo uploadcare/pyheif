@@ -4,11 +4,12 @@ ARCH ?= amd64
 LIBHEIF_VERSION ?= 1.21.2
 PYTHON_VERSION ?= cp312-cp312
 DOCKER_IID_FILE = .docker_build-$(ARCH)-$(LIBHEIF_VERSION)-$(PYTHON_VERSION)
+DOCKER_BUILD_EXTRA_ARGS ?=
 
 
 .PHONY: test
 test:
-	docker build --platform=linux/$(ARCH) --iidfile $(DOCKER_IID_FILE) . \
+	docker build --platform=linux/$(ARCH) --iidfile $(DOCKER_IID_FILE) $(DOCKER_BUILD_EXTRA_ARGS) . \
 		--build-arg=LIBHEIF_VERSION=$(LIBHEIF_VERSION) --build-arg=PYTHON_VERSION=$(PYTHON_VERSION)
 
 
