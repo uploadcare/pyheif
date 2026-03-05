@@ -1,3 +1,6 @@
+ARG LIBHEIF_VERSION=1.21.2
+ARG PYTHON_VERSION=cp312-cp312
+
 # -------------------------------- base ------------------------------------------------
 FROM quay.io/pypa/manylinux_2_28:2026.02.06-1 AS base
 
@@ -44,8 +47,8 @@ RUN set -ex \
 
 # -------------------------------- libheif ---------------------------------------------
 FROM libheif-deps AS libheif
+ARG LIBHEIF_VERSION
 
-ARG LIBHEIF_VERSION=1.21.2
 RUN set -ex \
     && LIBHEIF_VERSION="$LIBHEIF_VERSION" \
     && curl -fLO https://github.com/strukturag/libheif/releases/download/v${LIBHEIF_VERSION}/libheif-${LIBHEIF_VERSION}.tar.gz \
@@ -55,88 +58,31 @@ RUN set -ex \
     && make -j $(nproc) && make install && ldconfig \
     && rm -rf /build
 
+
+# -------------------------------- wheel -----------------------------------------------
+FROM libheif AS wheel
+ARG PYTHON_VERSION
+
 COPY ./ /pyheif
 
 RUN set -ex \
-    && PNV="/opt/python/cp310-cp310/bin" \
-    && $PNV/pip wheel /pyheif \
-    && auditwheel repair pyheif*.whl -w /wheelhouse \
-    && $PNV/pip install --only-binary :all: -r /pyheif/requirements-test.txt \
-    && $PNV/pip install /wheelhouse/*-cp310-*.whl \
-    && cd /pyheif && $PNV/pytest
-
-
-# -------------------------------- all-pythons-repaired --------------------------------
-FROM libheif AS all-pythons-repaired
-
-COPY ./ /pyheif
-
-RUN /opt/python/cp38-cp38/bin/pip wheel /pyheif
-RUN /opt/python/cp39-cp39/bin/pip wheel /pyheif
-RUN /opt/python/cp310-cp310/bin/pip wheel /pyheif
-RUN /opt/python/cp311-cp311/bin/pip wheel /pyheif
-RUN /opt/python/cp312-cp312/bin/pip wheel /pyheif
-RUN /opt/python/cp313-cp313/bin/pip wheel /pyheif
-RUN /opt/python/cp314-cp314/bin/pip wheel /pyheif
-RUN /opt/python/pp311-pypy311_pp73/bin/pip wheel /pyheif
-RUN auditwheel repair pyheif*.whl -w /wheelhouse
+    && /opt/python/${PYTHON_VERSION}/bin/pip wheel /pyheif \
+    && auditwheel repair pyheif*.whl -w /wheels
 
 
 # -------------------------------- tested ----------------------------------------------
 FROM base AS tested
+ARG PYTHON_VERSION
 
 COPY ./requirements-test.txt /tmp/requirements-test.txt
 
-RUN /opt/python/cp38-cp38/bin/pip install --only-binary :all: -r /tmp/requirements-test.txt
-RUN /opt/python/cp39-cp39/bin/pip install --only-binary :all: -r /tmp/requirements-test.txt
-RUN /opt/python/cp310-cp310/bin/pip install --only-binary :all: -r /tmp/requirements-test.txt
-RUN /opt/python/cp311-cp311/bin/pip install --only-binary :all: -r /tmp/requirements-test.txt
-RUN /opt/python/cp312-cp312/bin/pip install --only-binary :all: -r /tmp/requirements-test.txt
-RUN /opt/python/cp313-cp313/bin/pip install --only-binary :all: -r /tmp/requirements-test.txt
-RUN /opt/python/cp314-cp314/bin/pip install --only-binary :all: -r /tmp/requirements-test.txt
-RUN /opt/python/pp311-pypy311_pp73/bin/pip install --only-binary :all: -r /tmp/requirements-test.txt
+RUN /opt/python/${PYTHON_VERSION}/bin/pip install --only-binary :all: -r /tmp/requirements-test.txt
 
-COPY --from=all-pythons-repaired /wheelhouse /wheelhouse
+COPY --from=wheel /wheels /wheels
 COPY ./ /pyheif
 WORKDIR /pyheif
 
-# python 3.8
 RUN set -ex \
-    && PNV="/opt/python/cp38-cp38/bin" \
-    && $PNV/pip install /wheelhouse/*-cp38-*.whl \
-    && $PNV/pytest
-# python 3.9
-RUN set -ex \
-    && PNV="/opt/python/cp39-cp39/bin" \
-    && $PNV/pip install /wheelhouse/*-cp39-*.whl \
-    && $PNV/pytest
-# python 3.10
-RUN set -ex \
-    && PNV="/opt/python/cp310-cp310/bin" \
-    && $PNV/pip install /wheelhouse/*-cp310-*.whl \
-    && $PNV/pytest
-# python 3.11
-RUN set -ex \
-    && PNV="/opt/python/cp311-cp311/bin" \
-    && $PNV/pip install /wheelhouse/*-cp311-*.whl \
-    && $PNV/pytest
-# python 3.12
-RUN set -ex \
-    && PNV="/opt/python/cp312-cp312/bin" \
-    && $PNV/pip install /wheelhouse/*-cp312-*.whl \
-    && $PNV/pytest
-# python 3.13
-RUN set -ex \
-    && PNV="/opt/python/cp313-cp313/bin" \
-    && $PNV/pip install /wheelhouse/*-cp313-*.whl \
-    && $PNV/pytest
-# python 3.14
-RUN set -ex \
-    && PNV="/opt/python/cp314-cp314/bin" \
-    && $PNV/pip install /wheelhouse/*-cp314-*.whl \
-    && $PNV/pytest
-# pypy 3.11
-RUN set -ex \
-    && PNV="/opt/python/pp311-pypy311_pp73/bin" \
-    && $PNV/pip install /wheelhouse/*-pp311-*.whl \
+    && PNV="/opt/python/${PYTHON_VERSION}/bin" \
+    && $PNV/pip install /wheels/pyheif-*.whl \
     && $PNV/pytest
