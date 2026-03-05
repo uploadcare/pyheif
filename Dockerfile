@@ -6,7 +6,9 @@ FROM quay.io/pypa/manylinux_2_28:2026.02.06-1 AS base
 
 WORKDIR /build
 
-RUN dnf install -y nasm
+RUN dnf install -y nasm \
+    && dnf clean all \
+    && rm -rf /var/cache/dnf
 RUN pipx install --force "cmake<4"
 
 

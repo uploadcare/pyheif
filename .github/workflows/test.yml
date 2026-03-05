@@ -10,23 +10,24 @@ permissions:
   actions: write
 
 jobs:
-  libheif-deps-cache:
+  libheif-cache:
     name: Warm libheif dependencies cache
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
 
       - name: Warm libheif deps cache
-        run: |
-          docker build --target=libheif-deps --output type=cacheonly . \
-            --cache-from type=gha,scope=libheif-deps \
-            --cache-to type=gha,scope=libheif-deps
+        uses: docker/build-push-action@v6
+        with:
+          target: libheif
+          cache-from: type=gha,scope=libheif
+          cache-to: type=gha,mode=max,scope=libheif
 
   test-default-libheif-all-python:
     name: Test default libheif on Python ${{ matrix.python_version }}
     runs-on: ubuntu-latest
-    needs: libheif-deps-cache
+    needs: libheif-cache
     strategy:
       fail-fast: false
       matrix:
@@ -40,18 +41,19 @@ jobs:
           - cp314-cp314
           - pp311-pypy311_pp73
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
 
       - name: Build and test (default libheif + python matrix)
-        run: |
-          make test PYTHON_VERSION='${{ matrix.python_version }}' \
-            DOCKER_BUILD_EXTRA_ARGS='--cache-from type=gha,scope=libheif-deps'
+        uses: docker/build-push-action@v6
+        with:
+          cache-from: type=gha,scope=libheif
+          build-args: PYTHON_VERSION=${{ matrix.python_version }}
 
   test-default-python-all-libheif:
     name: Test libheif ${{ matrix.libheif_version }} with default Python
     runs-on: ubuntu-latest
-    needs: libheif-deps-cache
+    needs: libheif-cache
     strategy:
       fail-fast: false
       matrix:
@@ -62,10 +64,11 @@ jobs:
           - 1.20.2
           - 1.21.2
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
+      - uses: docker/setup-buildx-action@v3
 
       - name: Build and test (python default + libheif matrix)
-        run: |
-          make test LIBHEIF_VERSION='${{ matrix.libheif_version }}' \
-            DOCKER_BUILD_EXTRA_ARGS='--cache-from type=gha,scope=libheif-deps'
+        uses: docker/build-push-action@v6
+        with:
+          cache-from: type=gha,scope=libheif
+          build-args: LIBHEIF_VERSION=${{ matrix.libheif_version }}
