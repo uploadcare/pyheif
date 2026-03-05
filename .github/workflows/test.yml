@@ -19,10 +19,9 @@ jobs:
 
       - name: Warm libheif deps cache
         run: |
-          docker build --platform=linux/$(ARCH) --target=libheif-deps . \
+          docker build --target=libheif-deps --output type=cacheonly . \
             --cache-from type=gha,scope=libheif-deps \
-            --cache-to type=gha,scope=libheif-deps \
-            --output type=cacheonly
+            --cache-to type=gha,scope=libheif-deps
 
   test-default-libheif-all-python:
     name: Test default libheif on Python ${{ matrix.python_version }}
